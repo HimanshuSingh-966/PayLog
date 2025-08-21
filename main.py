@@ -7,6 +7,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 import json
 from dotenv import load_dotenv
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # Load environment variables
 load_dotenv()
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 GOOGLE_SHEETS_CREDS = os.getenv('GOOGLE_SHEETS_CREDS')
 SPREADSHEET_ID = os.getenv('SPREADSHEET_ID')
+PORT = int(os.getenv('PORT', 8000))
 
 # Check required environment variables
 if not BOT_TOKEN:
@@ -27,6 +30,28 @@ if not GOOGLE_SHEETS_CREDS:
     logger.warning("GOOGLE_SHEETS_CREDS not found - Google Sheets functionality will be disabled")
 if not SPREADSHEET_ID:
     logger.warning("SPREADSHEET_ID not found - Google Sheets functionality will be disabled")
+
+# Simple HTTP handler for health checks
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/' or self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'Expense Tracker Bot is running!')
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def log_message(self, format, *args):
+        # Suppress HTTP server logs
+        pass
+
+def start_web_server():
+    """Start a simple HTTP server for health checks"""
+    server = HTTPServer(('0.0.0.0', PORT), HealthHandler)
+    logger.info(f"Starting HTTP server on port {PORT}")
+    server.serve_forever()
 
 class ExpenseTracker:
     def __init__(self):
@@ -589,6 +614,10 @@ def main():
     if not BOT_TOKEN:
         print("❌ BOT_TOKEN not found in environment variables!")
         return
+    
+    # Start HTTP server in a separate thread
+    server_thread = threading.Thread(target=start_web_server, daemon=True)
+    server_thread.start()
         
     # Create application
     application = Application.builder().token(BOT_TOKEN).build()
@@ -603,7 +632,7 @@ def main():
     application.add_error_handler(error_handler)
     
     # Start the bot
-    print("🚀 Expense Tracker Bot is running with Google Sheets storage...")
+    print(f"🚀 Expense Tracker Bot is running with Google Sheets storage on port {PORT}...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
