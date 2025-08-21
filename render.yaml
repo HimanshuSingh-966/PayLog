@@ -1,12 +1,10 @@
 services:
   - type: web
     name: expense-tracker-bot
-    runtime: python3
+    env: python
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     plan: free
-    autoDeploy: true
-    healthCheckPath: /
     envVars:
       - key: BOT_TOKEN
         sync: false
@@ -14,7 +12,5 @@ services:
         sync: false
       - key: SPREADSHEET_ID
         sync: false
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: PORT
-        value: "10000"
+      - key: PYTHON_VERSION
+        value: "3.11.0"
