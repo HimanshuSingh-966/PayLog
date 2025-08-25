@@ -346,6 +346,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start command handler"""
     if not update.message:
         return
+    
+    # Clear any existing user data
+    context.user_data.clear()
         
     keyboard = [
         [KeyboardButton("💰 Total Stack"), KeyboardButton("👛 Wallet")],
@@ -379,10 +382,11 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     text = update.message.text
     
+    # Initialize user_data if it doesn't exist
+    if not hasattr(context, 'user_data') or context.user_data is None:
+        context.user_data = {}
+    
     if text in ["💰 Total Stack", "👛 Wallet"]:
-        if not context.user_data:
-            return
-            
         context.user_data['category'] = 'total' if text == "💰 Total Stack" else 'wallet'
         
         keyboard = [
@@ -395,7 +399,7 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         current_balance = total_balance if context.user_data['category'] == 'total' else wallet_balance
         
         await update.message.reply_text(
-            f"🏦 **{text}**\n💰 Current Balance: ₹{current_balance:,.2f}\n\nWhat would you like to do?",
+            f"🏦 **{text}**\n💰 Current Balance: ₹{current_balance:,.2f}\n\n⬇️ What would you like to do?",
             reply_markup=reply_markup
         )
     
@@ -407,29 +411,31 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            "🤝 **Lending Management**\n\nChoose an action:",
+            "🤝 **Lending Management**\n\n⬇️ Choose an action:",
             reply_markup=reply_markup
         )
     
     elif text == "📊 Reports":
         keyboard = [
-            [InlineKeyboardButton("Today", callback_data="history_day"),
-             InlineKeyboardButton("Week", callback_data="history_week")],
-            [InlineKeyboardButton("Month", callback_data="history_month"),
-             InlineKeyboardButton("Year", callback_data="history_year")]
+            [InlineKeyboardButton("📅 Today", callback_data="history_day"),
+             InlineKeyboardButton("📆 Week", callback_data="history_week")],
+            [InlineKeyboardButton("🗓️ Month", callback_data="history_month"),
+             InlineKeyboardButton("📅 Year", callback_data="history_year")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            "📊 **Transaction Reports**\n\nSelect time period:",
+            "📊 **Transaction Reports**\n\n⬇️ Select time period:",
             reply_markup=reply_markup
         )
     
     elif text == "📋 Summary":
+        await update.message.reply_text("⏳ Generating summary...")
         summary = tracker.get_summary()
         await update.message.reply_text(summary)
     
     elif text == "📁 Export Data":
+        await update.message.reply_text("⏳ Exporting data...")
         export_data = tracker.export_data_as_text()
         await update.message.reply_text(export_data)
 
@@ -443,45 +449,58 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     data = query.data
     
+    # Initialize user_data if it doesn't exist
+    if not hasattr(context, 'user_data') or context.user_data is None:
+        context.user_data = {}
+    
     if data.startswith('add_') or data.startswith('subtract_'):
         action, category = data.split('_')
-        if not context.user_data:
-            return
-            
         context.user_data['action'] = action
         context.user_data['category'] = category
+        context.user_data['waiting_for'] = 'amount'
+        
+        action_text = "add to" if action == "add" else "subtract from"
+        category_text = "Total Stack" if category == "total" else "Wallet"
         
         await query.edit_message_text(
-            f"💰 Enter the amount to {action} {'to' if action == 'add' else 'from'} {category}:"
+            f"💰 **{action_text.title()} {category_text}**\n\n"
+            f"💵 Please enter the amount to {action_text} {category_text.lower()}:\n\n"
+            f"💡 Example: 500 or 1500.50"
         )
-        context.user_data['waiting_for'] = 'amount'
     
     elif data == 'lend_money':
-        if not context.user_data:
-            return
-            
-        await query.edit_message_text("👤 Enter the person's name to whom you're lending money:")
+        await query.edit_message_text(
+            "💸 **Lend Money**\n\n"
+            "👤 Please enter the person's name to whom you're lending money:\n\n"
+            "💡 Example: John or Sarah"
+        )
         context.user_data['action'] = 'lend'
         context.user_data['waiting_for'] = 'person_name'
     
     elif data == 'money_returned':
-        if not context.user_data:
-            return
-            
-        await query.edit_message_text("👤 Enter the name of the person who returned money:")
+        await query.edit_message_text(
+            "💰 **Money Returned**\n\n"
+            "👤 Please enter the name of the person who returned money:\n\n"
+            "💡 Example: John or Sarah"
+        )
         context.user_data['action'] = 'return'
         context.user_data['waiting_for'] = 'return_person'
     
     elif data.startswith('history_'):
         period = data.split('_')[1]
+        await query.edit_message_text("⏳ Loading transaction history...")
         history = tracker.get_history(period)
         await query.edit_message_text(history)
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text inputs for transactions"""
-    if not update.message or not update.message.text or not context.user_data:
+    if not update.message or not update.message.text:
         await handle_menu(update, context)
         return
+    
+    # Initialize user_data if it doesn't exist
+    if not hasattr(context, 'user_data') or context.user_data is None:
+        context.user_data = {}
     
     if 'waiting_for' not in context.user_data:
         await handle_menu(update, context)
@@ -493,27 +512,51 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if waiting_for == 'amount':
         try:
             amount = float(text)
+            if amount <= 0:
+                await update.message.reply_text("❌ Please enter a positive amount.")
+                return
+                
             context.user_data['amount'] = amount
-            await update.message.reply_text("📝 Enter a description for this transaction:")
+            action = context.user_data.get('action', 'add')
+            category = context.user_data.get('category', 'total')
+            
+            action_text = "adding to" if action == "add" else "subtracting from"
+            category_text = "Total Stack" if category == "total" else "Wallet"
+            
+            await update.message.reply_text(
+                f"💰 **₹{amount:,.2f}** will be {action_text} {category_text}\n\n"
+                f"📝 Please enter a description for this transaction:\n\n"
+                f"💡 Example: Salary, Food, Shopping, etc."
+            )
             context.user_data['waiting_for'] = 'description'
         except ValueError:
-            await update.message.reply_text("❌ Please enter a valid number for the amount.")
+            await update.message.reply_text(
+                "❌ Please enter a valid number for the amount.\n\n"
+                "💡 Example: 500 or 1500.50"
+            )
     
     elif waiting_for == 'description':
         description = text
-        action = context.user_data['action']
-        category = context.user_data['category']
-        amount = context.user_data['amount']
+        action = context.user_data.get('action', 'add')
+        category = context.user_data.get('category', 'total')
+        amount = context.user_data.get('amount', 0)
+        
+        # Show processing message
+        processing_msg = await update.message.reply_text("⏳ Processing transaction...")
         
         total_balance, wallet_balance = tracker.add_transaction(action, category, amount, description)
         
-        await update.message.reply_text(
-            f"✅ **Transaction Successful!**\n"
-            f"💰 Amount: ₹{amount:,.2f} {action}ed {'to' if action == 'add' else 'from'} {category}\n"
-            f"📝 Description: {description}\n"
-            f"💳 Updated Balances:\n"
-            f"   • Total: ₹{total_balance:,.2f}\n"
-            f"   • Wallet: ₹{wallet_balance:,.2f}"
+        action_text = "Added to" if action == "add" else "Subtracted from"
+        category_text = "Total Stack" if category == "total" else "Wallet"
+        
+        await processing_msg.edit_text(
+            f"✅ **Transaction Successful!**\n\n"
+            f"💰 Amount: ₹{amount:,.2f} {action_text.lower()} {category_text.lower()}\n"
+            f"📝 Description: {description}\n\n"
+            f"💳 **Updated Balances:**\n"
+            f"   • Total Stack: ₹{total_balance:,.2f}\n"
+            f"   • Wallet: ₹{wallet_balance:,.2f}\n"
+            f"   • Combined: ₹{total_balance + wallet_balance:,.2f}"
         )
         
         # Clear context
@@ -521,43 +564,74 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif waiting_for == 'person_name':
         context.user_data['person'] = text
-        await update.message.reply_text("💰 Enter the amount you're lending:")
+        await update.message.reply_text(
+            f"👤 **Lending to: {text}**\n\n"
+            f"💰 Please enter the amount you're lending:\n\n"
+            f"💡 Example: 500 or 1500.50"
+        )
         context.user_data['waiting_for'] = 'lend_amount'
     
     elif waiting_for == 'lend_amount':
         try:
             amount = float(text)
+            if amount <= 0:
+                await update.message.reply_text("❌ Please enter a positive amount.")
+                return
+                
             context.user_data['amount'] = amount
-            await update.message.reply_text("📝 Enter a description for this lending:")
+            person = context.user_data.get('person', 'Unknown')
+            
+            await update.message.reply_text(
+                f"👤 **Person:** {person}\n"
+                f"💰 **Amount:** ₹{amount:,.2f}\n\n"
+                f"📝 Please enter a description for this lending:\n\n"
+                f"💡 Example: Emergency, Business, Personal, etc."
+            )
             context.user_data['waiting_for'] = 'lend_description'
         except ValueError:
-            await update.message.reply_text("❌ Please enter a valid number for the amount.")
+            await update.message.reply_text(
+                "❌ Please enter a valid number for the amount.\n\n"
+                "💡 Example: 500 or 1500.50"
+            )
     
     elif waiting_for == 'lend_description':
-        person = context.user_data['person']
-        amount = context.user_data['amount']
+        person = context.user_data.get('person', 'Unknown')
+        amount = context.user_data.get('amount', 0)
         description = text
+        
+        # Show processing message
+        processing_msg = await update.message.reply_text("⏳ Recording lending...")
         
         tracker.add_lending(person, amount, description)
         
-        await update.message.reply_text(
-            f"✅ **Lending Recorded!**\n"
-            f"👤 Person: {person}\n"
-            f"💰 Amount: ₹{amount:,.2f}\n"
-            f"📝 Description: {description}"
+        await processing_msg.edit_text(
+            f"✅ **Lending Recorded Successfully!**\n\n"
+            f"👤 **Person:** {person}\n"
+            f"💰 **Amount:** ₹{amount:,.2f}\n"
+            f"📝 **Description:** {description}\n\n"
+            f"💡 Use 'Money Returned' option when {person} returns the money."
         )
         
         context.user_data.clear()
     
     elif waiting_for == 'return_person':
         context.user_data['return_person'] = text
-        await update.message.reply_text("💰 Enter the amount returned:")
+        await update.message.reply_text(
+            f"👤 **Money returned by: {text}**\n\n"
+            f"💰 Please enter the amount returned:\n\n"
+            f"💡 Example: 500 or 1500.50"
+        )
         context.user_data['waiting_for'] = 'return_amount'
     
     elif waiting_for == 'return_amount':
         try:
             amount = float(text)
+            if amount <= 0:
+                await update.message.reply_text("❌ Please enter a positive amount.")
+                return
+                
             context.user_data['return_amount'] = amount
+            person = context.user_data.get('return_person', 'Unknown')
             
             keyboard = [
                 [InlineKeyboardButton("💰 Total Stack", callback_data="return_to_total"),
@@ -566,41 +640,60 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
-                "🏦 Where should the returned money be added?",
+                f"👤 **Person:** {person}\n"
+                f"💰 **Amount:** ₹{amount:,.2f}\n\n"
+                f"🏦 **Where should the returned money be added?**\n\n"
+                f"⬇️ Choose destination:",
                 reply_markup=reply_markup
             )
             context.user_data['waiting_for'] = 'return_destination'
         except ValueError:
-            await update.message.reply_text("❌ Please enter a valid number for the amount.")
+            await update.message.reply_text(
+                "❌ Please enter a valid number for the amount.\n\n"
+                "💡 Example: 500 or 1500.50"
+            )
 
 async def handle_return_destination(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle return destination selection"""
     query = update.callback_query
-    if not query or not query.data or not context.user_data:
+    if not query or not query.data:
         return
         
     await query.answer()
     
+    # Initialize user_data if it doesn't exist
+    if not hasattr(context, 'user_data') or context.user_data is None:
+        context.user_data = {}
+    
     destination = 'total' if query.data == 'return_to_total' else 'wallet'
-    person = context.user_data['return_person']
-    amount = context.user_data['return_amount']
+    person = context.user_data.get('return_person', 'Unknown')
+    amount = context.user_data.get('return_amount', 0)
+    
+    # Show processing message
+    await query.edit_message_text("⏳ Processing return...")
     
     success = tracker.return_lending(person, amount, destination)
     
     if success:
         total_balance, wallet_balance = tracker.get_current_balances()
+        destination_text = "Total Stack" if destination == "total" else "Wallet"
+        
         await query.edit_message_text(
-            f"✅ **Money Return Recorded!**\n"
-            f"👤 Returned by: {person}\n"
-            f"💰 Amount: ₹{amount:,.2f}\n"
-            f"🏦 Added to: {destination.title()}\n"
-            f"💳 Updated Balances:\n"
-            f"   • Total: ₹{total_balance:,.2f}\n"
-            f"   • Wallet: ₹{wallet_balance:,.2f}"
+            f"✅ **Money Return Recorded Successfully!**\n\n"
+            f"👤 **Returned by:** {person}\n"
+            f"💰 **Amount:** ₹{amount:,.2f}\n"
+            f"🏦 **Added to:** {destination_text}\n\n"
+            f"💳 **Updated Balances:**\n"
+            f"   • Total Stack: ₹{total_balance:,.2f}\n"
+            f"   • Wallet: ₹{wallet_balance:,.2f}\n"
+            f"   • Combined: ₹{total_balance + wallet_balance:,.2f}"
         )
     else:
         await query.edit_message_text(
-            f"❌ No matching lending record found for {person} with amount ₹{amount:,.2f}"
+            f"❌ **No Matching Lending Record Found**\n\n"
+            f"👤 **Person:** {person}\n"
+            f"💰 **Amount:** ₹{amount:,.2f}\n\n"
+            f"💡 Please check if the person name and amount match exactly with your lending records."
         )
     
     context.user_data.clear()
@@ -608,6 +701,16 @@ async def handle_return_destination(update: Update, context: ContextTypes.DEFAUL
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors"""
     logger.error(f"Exception while handling an update: {context.error}")
+    
+    # Try to send error message to user if possible
+    if update and hasattr(update, 'effective_message') and update.effective_message:
+        try:
+            await update.effective_message.reply_text(
+                "❌ **An error occurred!**\n\n"
+                "Please try again or use /start to restart the bot."
+            )
+        except:
+            pass  # If we can't send message, just log the error
 
 def main():
     """Main function to run the bot"""
@@ -622,17 +725,22 @@ def main():
     # Create application
     application = Application.builder().token(BOT_TOKEN).build()
     
-    # Add handlers
+    # Add handlers in the correct order
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input))
-    application.add_handler(CallbackQueryHandler(button_callback, pattern=r'^(?!return_to_).*'))
+    
+    # Handle callback queries first (inline buttons)
     application.add_handler(CallbackQueryHandler(handle_return_destination, pattern=r'^return_to_'))
+    application.add_handler(CallbackQueryHandler(button_callback))
+    
+    # Handle text messages (but not commands)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input))
     
     # Add error handler
     application.add_error_handler(error_handler)
     
     # Start the bot
     print(f"🚀 Expense Tracker Bot is running with Google Sheets storage on port {PORT}...")
+    print("📱 Bot is ready to receive messages!")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
