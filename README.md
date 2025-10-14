@@ -1,219 +1,307 @@
-# 💰PayLog - A Telegram Expense Tracker Bot
+# 💰 PayLog AI - Intelligent Expense Tracker
 
-A comprehensive Telegram bot for tracking personal(physical) expenses using Google Sheets as the backend storage. Track your cash flow between different sources, manage lending, and get detailed financial reports.
+> Your personal AI-powered financial assistant on Telegram
 
-## ✨ Features
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
+[![AI](https://img.shields.io/badge/AI-Gemini%20Flash%202.0-orange.svg)](https://openrouter.ai/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-### 💰 Money Management
-- **Total Stack & Wallet**: Track money in two separate locations
-- **Add/Subtract**: Easy money transactions with descriptions
-- **Real-time Balances**: Always know your current financial status
+## 🌟 Overview
 
-### 🤝 Lending System
-- **Lend Money**: Record money lent to friends/family
-- **Track Returns**: Mark when money is returned and where to add it
-- **Persistent Records**: All lending data stored in Google Sheets
+PayLog AI is an advanced Telegram bot that transforms expense tracking with artificial intelligence. Simply type naturally - "spent 500 on groceries at DMart" - and the AI understands, categorizes, and tracks everything automatically.
 
-### 📊 Reports & Analytics
-- **Time-based Reports**: View transactions for today, week, month, or year
-- **Financial Summary**: Complete overview of income, expenses, and lending
-- **Export Data**: Get formatted text export of all your data
+## ✨ Key Features
 
-### 🌐 Google Sheets Integration
-- **Persistent Storage**: All data stored in Google Sheets
-- **Real-time Sync**: Instant updates across all devices
-- **Backup**: Your data is safe in the cloud
-- **Accessible**: View/edit data directly in Google Sheets
+### 🤖 AI-Powered Intelligence
+- **Natural Language Processing** - Type expenses as you speak
+- **Smart Category Recognition** - AI learns your spending patterns  
+- **Predictive Analytics** - Forecast month-end spending
+- **Anomaly Detection** - Get alerts for unusual expenses
+- **Context Memory** - Bot remembers your recent transactions
+
+### 💰 Smart Money Management
+- **Dual Wallets** - Separate Total Stack & Wallet tracking
+- **Auto Balancing** - Get transfer suggestions when wallet is low
+- **Burn Rate Analysis** - Know how many days your money will last
+- **Spending Insights** - AI-generated financial advice
+
+### 🎯 Personal Analytics
+- Daily/weekly/monthly spending averages
+- Category breakdown with percentages
+- Trend analysis (increasing/decreasing/stable)
+- Budget alerts and spending caps
+- Financial health scoring
+
+### 🤝 Smart Lending
+- Track money lent to friends
+- Auto reminders for pending returns
+- Lending pattern analysis
+- Settlement suggestions
+
+### ⚙️ Convenience
+- Custom aliases ("gro" → "groceries")
+- Frequent transaction shortcuts
+- Undo last transaction
+- Context-aware follow-ups
+- Multi-period reports
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Telegram Bot Token (from [@BotFather](https://t.me/botfather))
-- Google Service Account with Sheets API access
-- Google Spreadsheet ID
 
-### 🤖 Create Telegram Bot
-1. Message [@BotFather](https://t.me/botfather) on Telegram
-2. Use `/newbot` command
-3. Choose a name and username for your bot
-4. Copy the bot token
+1. **Telegram Bot Token**
+   - Message [@BotFather](https://t.me/botfather) on Telegram
+   - Use `/newbot` command and follow instructions
+   - Copy your bot token
 
-### 📊 Setup Google Sheets
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. Enable Google Sheets API
-4. Create a Service Account:
-   - Go to IAM & Admin → Service Accounts
-   - Click "Create Service Account"
-   - Give it a name and description
-   - Click "Create and Continue"
-   - Skip role assignment (click "Continue")
-   - Click "Done"
-5. Generate JSON key:
-   - Click on your service account
-   - Go to "Keys" tab
-   - Click "Add Key" → "Create new key"
-   - Choose JSON format
-   - Download the JSON file
-6. Create a Google Spreadsheet:
-   - Go to [Google Sheets](https://sheets.google.com/)
-   - Create a new spreadsheet
-   - Copy the spreadsheet ID from URL (between `/d/` and `/edit`)
-   - Share the spreadsheet with your service account email (found in JSON)
+2. **Google Sheets Setup**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a project and enable Google Sheets API
+   - Create a Service Account and download JSON credentials
+   - Create a Google Spreadsheet
+   - Share spreadsheet with service account email
 
-## 🔧 Installation
+3. **OpenRouter API Key**
+   - Sign up at [OpenRouter](https://openrouter.ai/)
+   - Get your API key from dashboard
+   - This powers the Gemini Flash 2.0 AI features
 
-### Local Development
-```bash
-# Clone the repository
-git clone https://github.com/HimanshuSingh-966/PayLog.git
-cd PayLog
+### Installation
 
-# Install dependencies
-pip install -r requirements.txt
+1. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# Run the bot
-python main.py
+2. **Configure environment variables**
+   
+   Create a `.env` file in the project root:
+   ```env
+   BOT_TOKEN=your_telegram_bot_token_here
+   GOOGLE_SHEETS_CREDS={"type":"service_account","project_id":"..."}
+   SPREADSHEET_ID=your_google_spreadsheet_id
+   OPENROUTER_API_KEY=your_openrouter_api_key
+   PORT=8000
+   ```
+
+   **Note**: 
+   - `GOOGLE_SHEETS_CREDS` should be the entire JSON content from your service account file (as a single line)
+   - `SPREADSHEET_ID` is the long string in your spreadsheet URL between `/d/` and `/edit`
+
+3. **Run the bot**
+   ```bash
+   python main.py
+   ```
+
+## 💬 Usage Examples
+
+### Natural Language Transactions
+```
+You: "Spent 500 on groceries at DMart"
+Bot: ✅ Expense Recorded!
+     💰 Amount: ₹500
+     📂 Category: groceries
+     🏪 Merchant: DMart
+     ...
+
+You: "Yesterday I paid 1000 for dinner"
+Bot: ✅ Expense Recorded!
+     📅 Date: 13 Oct 2025
+     💰 Amount: ₹1,000
+     ...
+
+You: "Add 50000 salary received"
+Bot: ✅ Income Added!
+     💰 Amount: ₹50,000
+     ...
 ```
 
-### Environment Variables
-Create a `.env` file with the following variables:
-
-```env
-BOT_TOKEN=your_telegram_bot_token_here
-GOOGLE_SHEETS_CREDS={"type":"service_account","project_id":"your-project",...}
-SPREADSHEET_ID=your_google_spreadsheet_id_here
+### Smart Queries
+```
+You: "Show me food expenses from last week"
+Bot: 📊 Expenses (Last 7 days):
+     📅 10/10/2025 | ₹500 - Lunch at cafe
+     📅 12/10/2025 | ₹800 - Dinner with friends
+     ...
 ```
 
-**Important**: The `GOOGLE_SHEETS_CREDS` should be the entire JSON content from your service account key file, formatted as a single line.
+### Custom Aliases
+```
+You: "set alias gro for groceries"
+Bot: ✅ Alias set: 'gro' → 'groceries'
 
-## 🌐 Deployment on Render
+You: "sub 500 gro"
+Bot: ✅ Expense Recorded!
+     📂 Category: groceries
+     ...
+```
 
-### Method 1: Using Render Dashboard
-1. Fork this repository to your GitHub account
-2. Go to [Render Dashboard](https://dashboard.render.com/)
-3. Click "New" → "Web Service"
-4. Connect your GitHub repository
-5. Configure the service:
-   - **Name**: `expense-tracker-bot`
-   - **Runtime**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python main.py`
-6. Add Environment Variables:
-   - `BOT_TOKEN`: Your Telegram bot token
-   - `GOOGLE_SHEETS_CREDS`: Your service account JSON (as single line)
-   - `SPREADSHEET_ID`: Your Google Spreadsheet ID
-7. Click "Create Web Service"
+## 📊 AI Features
 
-### Method 2: Using render.yaml (Infrastructure as Code)
-The `render.yaml` file in this repository will automatically configure your deployment.
+### Smart Insights
+Get AI-powered analysis of your spending:
+- Daily averages and trends
+- Category-wise breakdown
+- Personalized recommendations
+- Spending forecasts
 
-1. Fork this repository
-2. Connect to Render
-3. Render will automatically detect and deploy using the YAML configuration
-4. Add your environment variables in the Render dashboard
+### Anomaly Detection
+```
+⚠️ High spending alert! 
+You spent ₹10,000 on shopping - that's 5x your daily average
+```
 
-## 📱 Bot Usage
+### Predictive Analytics
+```
+📈 At current rate, you'll spend ₹25,000 this month
+📊 Your groceries spending increased 20% this month
+⏳ At current rate, your wallet cash lasts 8 more days
+```
 
-### Main Menu
-- **💰 Total Stack**: Manage your main money storage
-- **👛 Wallet**: Track your pocket money  
-- **🤝 Lending**: Record money lent to others
-- **📊 Reports**: View transaction history
-- **📋 Summary**: Get financial overview
-- **📁 Export Data**: Export all your data
+## 🏗️ Architecture
 
-### Transaction Flow
-1. Choose **Total Stack** or **Wallet**
-2. Click **Add Money** or **Subtract Money**
-3. Enter amount when prompted
-4. Enter description for the transaction
-5. Transaction is saved to Google Sheets
+### Core Modules
 
-### Lending Flow
-1. Choose **🤝 Lending**
-2. Click **💸 Lend Money**
-3. Enter person's name
-4. Enter amount
-5. Enter description
-6. When money is returned:
-   - Click **💰 Money Returned**
-   - Enter person's name and amount
-   - Choose where to add the returned money
+- **main.py** - Telegram bot with AI integration
+- **ai_service.py** - Gemini Flash 2.0 API integration
+- **analytics.py** - Statistical analysis & calculations
+- **user_prefs.py** - User preferences & settings
 
-## 📊 Google Sheets Structure
+### Tech Stack
 
-The bot creates two worksheets in your spreadsheet:
+- Python 3.11
+- python-telegram-bot (Telegram API)
+- OpenRouter (AI/LLM)
+- Google Sheets (Data storage)
+- pandas (Analytics)
 
-### Transactions Sheet
-- **date**: Transaction date
-- **type**: add/subtract
-- **category**: total/wallet
-- **amount**: Transaction amount
-- **description**: User-provided description
-- **balance_total**: Total stack balance after transaction
-- **balance_wallet**: Wallet balance after transaction
+## 📈 Feature Tiers
 
-### Lending Sheet
-- **date**: Lending date
-- **person**: Person's name
-- **amount**: Amount lent
-- **status**: lent/returned
-- **description**: Lending description
-- **return_date**: Date when returned
-- **return_to**: Where the money was added (total/wallet)
+### ✅ Tier 1: Smart Transaction Logging
+- Natural language parsing
+- Time recognition
+- Voice support (placeholder)
+- Custom aliases
+- Frequent transactions
 
-## 🔒 Security & Privacy
+### ✅ Tier 2: Personal Analytics & Insights
+- Daily averages
+- Category breakdown
+- Trend analysis
+- Spending forecasts
+- Smart alerts
 
-- All sensitive data is stored in environment variables
-- Google Service Account provides secure API access
-- No data is stored locally on the server
-- Telegram bot token is kept secure
-- Google Sheets data is private to your account
+### ✅ Tier 3: Contextual Awareness
+- Pattern learning
+- Merchant recognition
+- Context memory
+- Smart suggestions
 
-## 🚨 Troubleshooting
+### ✅ Tier 4: Multi-Wallet Intelligence
+- Transfer suggestions
+- Burn rate analysis
+- Usage patterns
+- Balance alerts
 
-### Common Issues
+### ✅ Tier 5: Lending 2.0
+- Lending tracking
+- Auto reminders
+- Analytics
+- Pattern analysis
 
-**Bot not responding:**
-- Check if `BOT_TOKEN` is correctly set
-- Ensure the bot is running on your server
+### ✅ Tier 6: Export & Reports
+- Time-based reports
+- Transaction history
+- Multiple formats
 
-**Google Sheets not updating:**
+### ✅ Tier 7: Convenience Features
+- Undo transactions
+- Quick shortcuts
+- Smart settings
+
+### ✅ Tier 8: Data Intelligence
+- Anomaly detection
+- Forecasting
+- Financial health
+- Predictive insights
+
+## 🔒 Privacy & Security
+
+- All sensitive data stored in environment variables
+- Google Sheets secured via Service Account
+- Local user preferences (no cloud storage of personal settings)
+- Privacy-first AI processing
+- Secure API key management
+
+## 📝 Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `BOT_TOKEN` | Telegram bot token from @BotFather | ✅ Yes |
+| `GOOGLE_SHEETS_CREDS` | Service account JSON credentials | ✅ Yes |
+| `SPREADSHEET_ID` | Google Spreadsheet ID | ✅ Yes |
+| `OPENROUTER_API_KEY` | OpenRouter API key | ✅ Yes |
+| `PORT` | HTTP server port (default: 8000) | ❌ No |
+
+## 🛠️ Troubleshooting
+
+### Bot not starting
+- Check if `BOT_TOKEN` is set in `.env`
+- Ensure `.env` file is in the project root
+- Verify all required dependencies are installed
+
+### Google Sheets not updating
 - Verify `GOOGLE_SHEETS_CREDS` is valid JSON
 - Check if spreadsheet is shared with service account email
 - Ensure `SPREADSHEET_ID` is correct
 
-**Deployment fails:**
-- Check all environment variables are set
-- Verify requirements.txt is present
-- Check build logs for specific errors
+### AI features not working
+- Verify `OPENROUTER_API_KEY` is set
+- Check OpenRouter API credits/quota
+- Review logs for API errors
 
-### Getting Help
-If you encounter issues:
-1. Check the logs in your deployment platform
-2. Verify all environment variables are correctly set
-3. Ensure your Google Sheets permissions are correct
-4. Test the bot locally first
+## 📚 Commands
 
-## 📝 Contributing
+| Command | Description |
+|---------|-------------|
+| `/start` | Initialize bot and show menu |
+| Natural text | Type expenses naturally |
+| Menu buttons | Use visual interface |
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+## 🎯 Roadmap
+
+### Phase 1 (Current) ✅
+- All 8 tiers of features
+- AI integration
+- Analytics & insights
+- Smart lending
+
+### Phase 2 (Upcoming)
+- Full voice transcription
+- PDF reports with charts
+- Group expense splitting
+- Receipt photo processing
+- Encrypted auto-backup
+- Tax-ready exports
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to:
+- Report bugs
+- Suggest features
+- Submit pull requests
 
 ## 📄 License
 
-This project is open source and available under the [MIT License](LICENSE).
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) for the Telegram Bot API wrapper
-- [gspread](https://github.com/burnash/gspread) for Google Sheets integration
-- [Render](https://render.com/) for easy deployment platform
+- [Gemini Flash 2.0](https://ai.google.dev/) - Powerful AI model
+- [OpenRouter](https://openrouter.ai/) - AI API access
+- [python-telegram-bot](https://python-telegram-bot.org/) - Telegram bot framework
+- Google Sheets - Reliable data storage
 
 ---
 
-**Made with ❤️ for better expense tracking**
+**Made with ❤️ for smart personal finance tracking**
