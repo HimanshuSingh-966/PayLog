@@ -7,3 +7,5 @@ google-api-python-client
 python-dotenv
 requests
 urllib3
+pandas
+python-dateutil
