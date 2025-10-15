@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import re
+import csv
+import io
 from ai_service import GeminiAIService
 from analytics import ExpenseAnalytics
 from user_prefs import UserPreferences
@@ -232,6 +234,26 @@ class ExpenseTracker:
             logger.error(f"Error undoing transaction: {e}")
             return False, str(e)
 
+    def export_to_csv(self, transactions):
+        """Export transactions to CSV format"""
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        writer.writerow(['Date', 'Type', 'Wallet', 'Amount', 'Category', 'Description', 'Merchant'])
+        
+        for t in transactions:
+            writer.writerow([
+                t.get('date', ''),
+                t.get('type', ''),
+                t.get('wallet_type', ''),
+                t.get('amount', ''),
+                t.get('category', ''),
+                t.get('description', ''),
+                t.get('merchant', '')
+            ])
+        
+        return output.getvalue()
+
 tracker = ExpenseTracker()
 user_preferences = {}
 
@@ -241,10 +263,11 @@ def get_user_prefs(user_id: int) -> UserPreferences:
     return user_preferences[user_id]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
+    if not update.message or not update.message.from_user:
         return
     
-    context.user_data.clear()
+    if context.user_data:
+        context.user_data.clear()
     user_id = update.message.from_user.id
     prefs = get_user_prefs(user_id)
         
@@ -252,7 +275,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [KeyboardButton("💰 Total Stack"), KeyboardButton("👛 Wallet")],
         [KeyboardButton("🤝 Lending"), KeyboardButton("📊 Reports")],
         [KeyboardButton("📋 Summary"), KeyboardButton("💡 Insights")],
-        [KeyboardButton("⚙️ Settings"), KeyboardButton("🔄 Undo Last")]
+        [KeyboardButton("⚙️ Settings"), KeyboardButton("🔄 Undo Last")],
+        [KeyboardButton("⚡ Quick Add"), KeyboardButton("📤 Export Data")],
+        [KeyboardButton("📝 Batch Entry"), KeyboardButton("🎯 My Goals")]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
@@ -268,9 +293,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📱 **Main Features:**
 • 💰 Total Stack & 👛 Wallet management
+• 📝 Batch entry for multiple transactions
 • 🤝 Smart lending tracking
 • 📊 Intelligent reports
 • 💡 AI-powered insights
+• ⚡ Quick add with presets
+• 📤 Export to CSV
 
 🚀 **Try saying:**
 "Spent 500 on groceries at DMart"
@@ -283,6 +311,8 @@ Choose an option below or just type naturally!
     await update.message.reply_text(welcome_msg, reply_markup=reply_markup)
 
 async def handle_natural_language(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    if not update.message or not update.message.from_user:
+        return
     user_id = update.message.from_user.id
     prefs = get_user_prefs(user_id)
     
@@ -292,12 +322,14 @@ async def handle_natural_language(update: Update, context: ContextTypes.DEFAULT_
             text = text.lower().replace(shortcut, full)
     
     if any(keyword in text.lower() for keyword in ['spent', 'paid', 'bought', 'subtract', 'sub']):
-        await update.message.reply_text("🤖 Analyzing your expense...")
+        if update.message:
+            await update.message.reply_text("🤖 Analyzing your expense...")
         
         parsed = tracker.ai_service.parse_natural_language(text)
         
         if not parsed.get('amount'):
-            await update.message.reply_text("❌ Couldn't extract amount. Please try: 'Spent 500 on groceries'")
+            if update.message:
+                await update.message.reply_text("❌ Couldn't extract amount. Please try: 'Spent 500 on groceries'")
             return
         
         amount = float(parsed['amount'])
@@ -334,26 +366,33 @@ async def handle_natural_language(update: Update, context: ContextTypes.DEFAULT_
             if spike_alert:
                 alert_msg = f"\n\n{spike_alert}"
         
-        await update.message.reply_text(
-            f"✅ **Expense Recorded!**\n\n"
-            f"💰 Amount: ₹{amount:,.2f}\n"
-            f"📂 Category: {category}\n"
-            f"🏪 Merchant: {merchant if merchant else 'N/A'}\n"
-            f"📅 Date: {trans_date.strftime('%d %b %Y')}\n"
-            f"📝 Description: {description}\n\n"
-            f"💳 **Updated Balances:**\n"
-            f"   • Total: ₹{total_bal:,.2f}\n"
-            f"   • Wallet: ₹{wallet_bal:,.2f}"
-            f"{alert_msg}"
-        )
+        anomaly_alert = tracker.ai_service.detect_anomaly(amount, category, daily_avg)
+        if anomaly_alert:
+            alert_msg += f"\n\n{anomaly_alert}"
+        
+        if update.message:
+            await update.message.reply_text(
+                f"✅ **Expense Recorded!**\n\n"
+                f"💰 Amount: ₹{amount:,.2f}\n"
+                f"📂 Category: {category}\n"
+                f"🏪 Merchant: {merchant if merchant else 'N/A'}\n"
+                f"📅 Date: {trans_date.strftime('%d %b %Y')}\n"
+                f"📝 Description: {description}\n\n"
+                f"💳 **Updated Balances:**\n"
+                f"   • Total: ₹{total_bal:,.2f}\n"
+                f"   • Wallet: ₹{wallet_bal:,.2f}"
+                f"{alert_msg}"
+            )
         
     elif any(keyword in text.lower() for keyword in ['add', 'received', 'income', 'salary']):
-        await update.message.reply_text("🤖 Processing income...")
+        if update.message:
+            await update.message.reply_text("🤖 Processing income...")
         
         parsed = tracker.ai_service.parse_natural_language(text)
         
         if not parsed.get('amount'):
-            await update.message.reply_text("❌ Couldn't extract amount.")
+            if update.message:
+                await update.message.reply_text("❌ Couldn't extract amount.")
             return
         
         amount = float(parsed['amount'])
@@ -364,15 +403,17 @@ async def handle_natural_language(update: Update, context: ContextTypes.DEFAULT_
         
         total_bal, wallet_bal = tracker.add_transaction('add', wallet_type, amount, description, category='income')
         
-        await update.message.reply_text(
-            f"✅ **Income Added!**\n\n"
-            f"💰 Amount: ₹{amount:,.2f}\n"
-            f"📝 {description}\n\n"
-            f"💳 New Balance: ₹{total_bal if wallet_type=='total' else wallet_bal:,.2f}"
-        )
+        if update.message:
+            await update.message.reply_text(
+                f"✅ **Income Added!**\n\n"
+                f"💰 Amount: ₹{amount:,.2f}\n"
+                f"📝 {description}\n\n"
+                f"💳 New Balance: ₹{total_bal if wallet_type=='total' else wallet_bal:,.2f}"
+            )
         
     elif 'show' in text.lower() or 'expenses' in text.lower():
-        await update.message.reply_text("📊 Fetching your expenses...")
+        if update.message:
+            await update.message.reply_text("📊 Fetching your expenses...")
         
         transactions = tracker.get_all_transactions()
         
@@ -387,43 +428,49 @@ async def handle_natural_language(update: Update, context: ContextTypes.DEFAULT_
         filtered = [t for t in transactions if datetime.strptime(str(t['date']), '%d/%m/%Y') >= cutoff]
         
         if not filtered:
-            await update.message.reply_text(f"No transactions found for the last {period_days} days.")
+            if update.message:
+                await update.message.reply_text(f"No transactions found for the last {period_days} days.")
             return
         
         response = f"📊 **Expenses (Last {period_days} days):**\n\n"
         for t in filtered[-10:]:
             response += f"📅 {t['date']} | ₹{t['amount']} - {t['description']}\n"
         
-        await update.message.reply_text(response)
+        if update.message:
+            await update.message.reply_text(response)
     
     else:
         context_data = prefs.get_context()
         if context_data.get('last_category'):
             if any(word in text.lower() for word in ['add', 'more', 'that', 'same']):
                 try:
-                    amount = float(re.search(r'(\d+(?:\.\d+)?)', text).group(1))
-                    category = context_data['last_category']
-                    wallet_type = context_data.get('last_wallet', 'wallet')
-                    
-                    total_bal, wallet_bal = tracker.add_transaction('subtract', wallet_type, amount, text, category=category)
-                    
-                    await update.message.reply_text(
-                        f"✅ Added ₹{amount} to {category}!\n"
-                        f"💳 Balance: ₹{total_bal if wallet_type=='total' else wallet_bal:,.2f}"
-                    )
-                    return
+                    amount_match = re.search(r'(\d+(?:\.\d+)?)', text)
+                    if amount_match:
+                        amount = float(amount_match.group(1))
+                        category = context_data['last_category']
+                        wallet_type = context_data.get('last_wallet', 'wallet')
+                        
+                        total_bal, wallet_bal = tracker.add_transaction('subtract', wallet_type, amount, text, category=category)
+                        
+                        if update.message:
+                            await update.message.reply_text(
+                                f"✅ Added ₹{amount} to {category}!\n"
+                                f"💳 Balance: ₹{total_bal if wallet_type=='total' else wallet_bal:,.2f}"
+                            )
+                        return
                 except:
                     pass
         
-        await update.message.reply_text(
-            "🤔 I didn't understand that. Try:\n"
-            "• 'Spent 500 on groceries'\n"
-            "• 'Yesterday paid 1000 for dinner'\n"
-            "• 'Show me food expenses'"
-        )
+        if update.message:
+            await update.message.reply_text(
+                "🤔 I didn't understand that. Try:\n"
+                "• 'Spent 500 on groceries'\n"
+                "• 'Yesterday paid 1000 for dinner'\n"
+                "• 'Show me food expenses'"
+            )
 
 async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
+    if not update.message or not update.message.text or not update.message.from_user:
         return
         
     text = update.message.text
@@ -496,11 +543,44 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(report)
     
+    elif text == "⚡ Quick Add":
+        keyboard = [
+            [InlineKeyboardButton("₹50 Coffee", callback_data="quick_50_food"),
+             InlineKeyboardButton("₹100 Snacks", callback_data="quick_100_food")],
+            [InlineKeyboardButton("₹500 Groceries", callback_data="quick_500_groceries"),
+             InlineKeyboardButton("₹500 Fuel", callback_data="quick_500_fuel")],
+            [InlineKeyboardButton("₹200 Transport", callback_data="quick_200_transport"),
+             InlineKeyboardButton("₹1000 Shopping", callback_data="quick_1000_shopping")],
+            [InlineKeyboardButton("⭐ My Frequent", callback_data="frequent_trans")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "⚡ **Quick Add Transaction**\n\n"
+            "Choose a preset or see your frequent transactions:",
+            reply_markup=reply_markup
+        )
+    
+    elif text == "📤 Export Data":
+        keyboard = [
+            [InlineKeyboardButton("📅 This Week", callback_data="export_week"),
+             InlineKeyboardButton("🗓️ This Month", callback_data="export_month")],
+            [InlineKeyboardButton("📆 All Time", callback_data="export_all")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "📤 **Export Data to CSV**\n\n"
+            "Choose a time period:",
+            reply_markup=reply_markup
+        )
+    
     elif text == "🤝 Lending":
         keyboard = [
             [InlineKeyboardButton("💸 Lend Money", callback_data="lend_money"),
              InlineKeyboardButton("💰 Money Returned", callback_data="money_returned")],
-            [InlineKeyboardButton("📊 Lending Analytics", callback_data="lending_analytics")]
+            [InlineKeyboardButton("📊 Lending Analytics", callback_data="lending_analytics")],
+            [InlineKeyboardButton("⏰ Pending Reminders", callback_data="lending_reminders")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -583,6 +663,49 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(f"❌ {message}")
     
+    elif text == "📝 Batch Entry":
+        await update.message.reply_text(
+            "📝 **Batch Entry Mode**\n\n"
+            "Enter multiple transactions, one per line:\n\n"
+            "**Format:** amount category description\n\n"
+            "**Example:**\n"
+            "500 groceries weekly shopping\n"
+            "200 fuel petrol refill\n"
+            "100 food lunch\n\n"
+            "Send your transactions now:"
+        )
+        context.user_data['waiting_for'] = 'batch_transactions'
+    
+    elif text == "🎯 My Goals":
+        prefs = get_user_prefs(user_id)
+        goals = prefs.get_active_goals()
+        
+        if not goals:
+            keyboard = [
+                [InlineKeyboardButton("➕ Add Goal", callback_data="add_goal")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(
+                "🎯 **Your Goals**\n\n"
+                "No goals set yet.\n\n"
+                "💡 Set goals to track savings, spending limits, or financial targets!",
+                reply_markup=reply_markup
+            )
+        else:
+            msg = "🎯 **Your Active Goals:**\n\n"
+            for i, goal in enumerate(goals[:5], 1):
+                msg += f"{i}. **{goal['description']}**\n"
+                msg += f"   Target: ₹{goal['target']:,.2f}\n"
+                if goal.get('deadline'):
+                    msg += f"   Deadline: {goal['deadline']}\n"
+                msg += f"   Type: {goal['type']}\n\n"
+            
+            keyboard = [
+                [InlineKeyboardButton("➕ Add New Goal", callback_data="add_goal")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(msg, reply_markup=reply_markup)
+    
     else:
         await handle_natural_language(update, context, text)
 
@@ -597,7 +720,66 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not hasattr(context, 'user_data') or context.user_data is None:
         context.user_data = {}
     
-    if data.startswith('add_') or data.startswith('subtract_'):
+    if data.startswith('quick_'):
+        parts = data.split('_')
+        amount = float(parts[1])
+        category = parts[2]
+        
+        total_bal, wallet_bal = tracker.add_transaction('subtract', 'wallet', amount, f"Quick: {category}", category=category)
+        
+        await query.edit_message_text(
+            f"✅ Quick transaction added!\n"
+            f"💰 ₹{amount} - {category}\n"
+            f"💳 Wallet: ₹{wallet_bal:,.2f}"
+        )
+    
+    elif data.startswith('export_'):
+        period = data.split('_')[1]
+        transactions = tracker.get_all_transactions()
+        
+        if period == 'week':
+            days = 7
+        elif period == 'month':
+            days = 30
+        else:
+            days = 99999
+        
+        cutoff = datetime.now() - timedelta(days=days)
+        filtered = [t for t in transactions if datetime.strptime(str(t['date']), '%d/%m/%Y') >= cutoff]
+        
+        csv_data = tracker.export_to_csv(filtered)
+        
+        await query.edit_message_text(
+            f"📊 **Export Ready!**\n\n"
+            f"Period: {period}\n"
+            f"Transactions: {len(filtered)}\n\n"
+            f"CSV Data:\n```\n{csv_data[:500]}...\n```\n\n"
+            f"💡 Copy the data above and save as .csv file"
+        )
+    
+    elif data == 'lending_reminders':
+        lending = tracker.get_all_lending()
+        pending = [l for l in lending if l['status'] == 'lent']
+        
+        if not pending:
+            await query.edit_message_text("✅ No pending loans!")
+            return
+        
+        reminders = "⏰ **Pending Loan Reminders:**\n\n"
+        
+        for loan in pending:
+            loan_date = datetime.strptime(str(loan['date']), '%d/%m/%Y')
+            days_ago = (datetime.now() - loan_date).days
+            
+            status_emoji = "⚠️" if days_ago > 14 else "📌"
+            reminders += f"{status_emoji} **{loan['person']}**\n"
+            reminders += f"   Amount: ₹{float(loan['amount']):,.2f}\n"
+            reminders += f"   Days ago: {days_ago}\n"
+            reminders += f"   Note: {loan['description']}\n\n"
+        
+        await query.edit_message_text(reminders)
+    
+    elif data.startswith('add_') or data.startswith('subtract_'):
         action, category = data.split('_')
         context.user_data['action'] = action
         context.user_data['category'] = category
@@ -679,7 +861,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history = f"📊 **Transaction History ({period.upper()}):**\n\n"
         for t in filtered[-15:]:
             history += f"📅 {t['date']}\n"
-            history += f"💰 {t['type'].title()} ₹{t['amount']} - {t['description']}\n"
+            trans_type = str(t['type']).title() if isinstance(t['type'], str) else t['type']
+            history += f"💰 {trans_type} ₹{t['amount']} - {t['description']}\n"
             if t.get('merchant'):
                 history += f"🏪 {t['merchant']}\n"
             history += f"\n"
@@ -695,8 +878,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         trends = "📈 **Spending Trends (4 weeks):**\n\n"
         for cat in list(categories)[:5]:
-            trend = ExpenseAnalytics.detect_trend(transactions, cat, 4)
-            trends += f"• {cat}: {trend}\n"
+            cat_str = str(cat) if cat else 'other'
+            trend = ExpenseAnalytics.detect_trend(transactions, cat_str, 4)
+            trends += f"• {cat_str}: {trend}\n"
         
         await query.edit_message_text(trends)
     
@@ -737,18 +921,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("⭐ **Quick Add Frequent:**", reply_markup=reply_markup)
     
-    elif data.startswith('quick_'):
-        parts = data.split('_')
-        amount = float(parts[1])
-        category = parts[2]
-        
-        total_bal, wallet_bal = tracker.add_transaction('subtract', 'wallet', amount, f"Quick: {category}", category=category)
-        
+    elif data == 'add_goal':
         await query.edit_message_text(
-            f"✅ Quick transaction added!\n"
-            f"💰 ₹{amount} - {category}\n"
-            f"💳 Wallet: ₹{wallet_bal:,.2f}"
+            "🎯 **Add New Goal**\n\n"
+            "Reply with goal details in this format:\n\n"
+            "**Format:** type target description [deadline]\n\n"
+            "**Types:** savings, spending_limit, investment\n\n"
+            "**Example:**\n"
+            "savings 50000 Save for vacation 2025-12-31\n"
+            "spending_limit 5000 Monthly food budget"
         )
+        context.user_data['waiting_for'] = 'goal_details'
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -758,6 +941,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not hasattr(context, 'user_data') or context.user_data is None:
         context.user_data = {}
     
+    if not update.message or not update.message.from_user:
+        return
     user_id = update.message.from_user.id
     prefs = get_user_prefs(user_id)
     text = update.message.text.strip()
@@ -870,6 +1055,66 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         context.user_data['waiting_for'] = 'return_amount'
     
+    elif waiting_for == 'goal_details':
+        try:
+            parts = text.strip().split(None, 3)
+            if len(parts) >= 3:
+                goal_type = parts[0]
+                target = float(parts[1])
+                description = parts[2]
+                deadline = parts[3] if len(parts) > 3 else None
+                
+                prefs.add_goal(goal_type, target, description, deadline)
+                
+                await update.message.reply_text(
+                    f"✅ **Goal Added!**\n\n"
+                    f"🎯 Type: {goal_type}\n"
+                    f"💰 Target: ₹{target:,.2f}\n"
+                    f"📝 {description}\n" +
+                    (f"📅 Deadline: {deadline}\n" if deadline else "")
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ Invalid format. Please use:\n"
+                    "type target description [deadline]"
+                )
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error: {str(e)}")
+        
+        context.user_data.clear()
+    
+    elif waiting_for == 'batch_transactions':
+        lines = text.strip().split('\n')
+        success_count = 0
+        failed_lines = []
+        
+        for line in lines:
+            try:
+                parts = line.strip().split(None, 2)
+                if len(parts) >= 2:
+                    amount = float(parts[0])
+                    category = parts[1].lower()
+                    description = parts[2] if len(parts) > 2 else f"{category} expense"
+                    
+                    tracker.add_transaction('subtract', 'wallet', amount, description, category=category)
+                    success_count += 1
+                else:
+                    failed_lines.append(line)
+            except:
+                failed_lines.append(line)
+        
+        result_msg = f"✅ **Batch Entry Complete!**\n\n"
+        result_msg += f"✓ Successfully added: {success_count} transactions\n"
+        
+        if failed_lines:
+            result_msg += f"❌ Failed to parse: {len(failed_lines)} lines\n\n"
+            result_msg += "Failed lines:\n"
+            for fl in failed_lines[:5]:
+                result_msg += f"• {fl}\n"
+        
+        await update.message.reply_text(result_msg)
+        context.user_data.clear()
+    
     elif waiting_for == 'return_amount':
         try:
             amount = float(text)
@@ -897,6 +1142,8 @@ async def handle_return_destination(update: Update, context: ContextTypes.DEFAUL
     
     await query.answer()
     
+    if not context.user_data:
+        context.user_data = {}
     person = context.user_data.get('return_person')
     amount = context.user_data.get('return_amount')
     
@@ -918,7 +1165,8 @@ async def handle_return_destination(update: Update, context: ContextTypes.DEFAUL
             f"Please check the person's name and amount."
         )
     
-    context.user_data.clear()
+    if context.user_data:
+        context.user_data.clear()
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.voice:
@@ -933,8 +1181,11 @@ def main():
     web_thread = threading.Thread(target=start_web_server, daemon=True)
     web_thread.start()
     
-    application = Application.builder().token(BOT_TOKEN).build()
-    
+    if not BOT_TOKEN:
+        logger.error("BOT_TOKEN is not set. Exiting application.")
+        import sys
+        sys.exit(1)
+    application = Application.builder().token(BOT_TOKEN).build()    
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.VOICE, handle_voice))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input))

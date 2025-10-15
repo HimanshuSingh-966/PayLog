@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from collections import defaultdict, Counter
 import logging
 
@@ -44,7 +44,7 @@ class ExpenseAnalytics:
         return {cat: (amt/total)*100 for cat, amt in category_totals.items()}
     
     @staticmethod
-    def detect_trend(transactions: List[Dict], category: str = None, weeks: int = 4) -> str:
+    def detect_trend(transactions: List[Dict], category: Optional[str] = None, weeks: int = 4) -> str:
         if len(transactions) < 2:
             return "Not enough data"
         
@@ -168,7 +168,7 @@ class ExpenseAnalytics:
         return sorted(frequent, key=lambda x: x['count'], reverse=True)[:limit]
     
     @staticmethod
-    def analyze_lending(lending_records: List[Dict]) -> Dict[str, any]:
+    def analyze_lending(lending_records: List[Dict]) -> Dict[str, Any]:
         if not lending_records:
             return {
                 'total_lent': 0,

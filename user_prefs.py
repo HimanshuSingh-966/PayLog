@@ -67,7 +67,8 @@ class UserPreferences:
     def get_spending_limit(self, category: str) -> Optional[Dict]:
         return self.data.get('spending_limits', {}).get(category)
     
-    def add_goal(self, goal_type: str, target: float, description: str, deadline: str = None):
+    def add_goal(self, goal_type: str, target: float, description: str, deadline: Optional[str] = None):
+        from datetime import datetime
         goal = {
             'type': goal_type,
             'target': target,
@@ -83,7 +84,7 @@ class UserPreferences:
     def get_active_goals(self) -> list:
         return self.data.get('goals', [])
     
-    def update_context(self, category: str = None, amount: float = None, wallet: str = None):
+    def update_context(self, category: Optional[str] = None, amount: Optional[float] = None, wallet: Optional[str] = None):
         if category:
             self.data['context']['last_category'] = category
         if amount:
@@ -125,5 +126,3 @@ class UserPreferences:
             'weekly_summary': True,
             'monthly_warning': True
         })
-
-from datetime import datetime
