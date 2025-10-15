@@ -16,15 +16,6 @@ __pycache__/
 attached_assets/
 .local/
 
-# Replit specific files
-replit.md
-.replit
-.replit.nix
-replit_zip_error_log.txt
-
-# Setup documentation
-SETUP.md
-
 # Distribution / packaging
 .Python
 build/
