@@ -13,7 +13,7 @@ class GeminiAIService:
     def __init__(self):
         # Google AI Studio Configuration (Primary for Render - Most Reliable)
         self.google_ai_key = os.getenv('GOOGLE_AI_API_KEY')
-        self.google_ai_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        self.google_ai_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         
         # Groq Configuration (Backup - Fast and Generous)
         self.groq_key = os.getenv('GROQ_API_KEY')
