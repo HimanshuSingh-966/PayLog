@@ -1,16 +1,29 @@
 services:
   - type: web
-    name: expense-tracker-bot
+    name: paylog-ai-bot
     env: python
+    region: oregon  
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
-    plan: free
+    plan: free  
+    healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: BOT_TOKEN
-        sync: false
+        sync: false 
       - key: GOOGLE_SHEETS_CREDS
-        sync: false
+        sync: false  
       - key: SPREADSHEET_ID
-        sync: false
+        sync: false  
+      - key: GOOGLE_AI_API_KEY
+        sync: false  
+      - key: GROQ_API_KEY
+        sync: false  
+      - key: OPENROUTER_API_KEY
+        sync: false  
       - key: PYTHON_VERSION
         value: "3.11.0"
+      - key: PORT
+        value: "8000"
+      - key: PYTHONUNBUFFERED
+        value: "1"  
